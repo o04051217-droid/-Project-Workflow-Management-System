@@ -5,6 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/-Project-Workflow-Management-System/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
