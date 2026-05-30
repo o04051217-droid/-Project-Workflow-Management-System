@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Theme Core Constants: Group Constant QunHe Warm Palette */
+  --color-brand-bg: #FAF6F0;          /* Warm linen soft background */
+  --color-brand-surface: #FFFFFF;     /* Pristine solid white for cards */
+  --color-brand-surface-alt: #FAF5EE; /* Latte-colored warm tone background */
+  --color-brand-accent: #F77F35;      /* Bold warm orange (QunHe Brand Accent) */
+  --color-brand-text: #2B2927;        /* Crisp warm charcoal for top tier typography readability */
+  --color-brand-muted: #8E867B;       /* Soft sandstone and taupe */
+  --color-brand-border: #E4DDD3;      /* Warm beige borders */
+  --color-brand-success: #10B981;     /* Sage-green representing growth & success */
+  --color-brand-warning: #F59E0B;     /* Honey amber for alerts */
+
+  /* Tailwind Core Mappings Overridden to create a Premium Warm Atmosphere */
+  --color-slate-50: #FAF6F0;          /* Base background mapping */
+  --color-slate-100: #FAF5EE;         /* Secondary cream container backgrounds */
+  --color-slate-200: #E4DDD3;         /* Standard borders */
+  --color-slate-300: #DDD4C7;         /* Active state borders and elements */
+  --color-slate-400: #8E867B;         /* Soft descriptions */
+  --color-slate-500: #746C61;         /* Muted text labels */
+  --color-slate-600: #4C463F;         /* Secondary readable text */
+  --color-slate-705: #2B2927;         /* Heavy primary paragraphs and body text */
+  --color-slate-800: #1E293B;         /* Slate 800 (Correct deep dark slate to prevent white-on-light theme bugs) */
+  --color-slate-900: #132247;         /* Deep corporate Navy Blue header */
+  --color-slate-950: #0C152B;         /* Contrast element ground */
+
+  /* Mapping Indigo utility classes to QunHe Deep Navy Blue representing stability & prestige */
+  --color-indigo-50: rgba(19, 34, 71, 0.05);
+  --color-indigo-100: rgba(19, 34, 71, 0.1);
+  --color-indigo-200: rgba(19, 34, 71, 0.2);
+  --color-indigo-500: #132247;
+  --color-indigo-600: #1C3266;
+  --color-indigo-700: #132247;
+  --color-indigo-800: #2B2927;
+  --color-indigo-900: #FAF6F0;
+  --color-indigo-950: #E4DDD3;
+
+  /* Mapping Amber / Teal states to support warmth */
+  --color-amber-50: rgba(245, 158, 11, 0.08);
+  --color-amber-100: rgba(245, 158, 11, 0.15);
+  --color-amber-500: #F77F35;
+  --color-amber-600: #E0651B;
+  --color-amber-700: #B44D10;
+
+  --color-teal-50: rgba(247, 127, 53, 0.08);
+  --color-teal-100: rgba(247, 127, 53, 0.15);
+  --color-teal-500: #F77F35;
+  --color-teal-600: #F77F35;
+  --color-teal-700: #D05F1C;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-text);
+  margin: 0;
+  padding: 0;
+}
+
+/* Force clean light colors for bg-white cards */
+.bg-white {
+  background-color: #FFFFFF !important;
+  color: #2B2927 !important;
+}
+
+/* Ensure inputs, selections, and text fields are soft ivory and sand-bordered */
+input, select, textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E4DDD3 !important;
+  color: #2B2927 !important;
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #F77F35 !important;
+  box-shadow: 0 0 0 2px rgba(247, 127, 53, 0.15) !important;
+  outline: none !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #A39B92 !important;
+}
+
+/* Beautiful custom checkbox */
+input[type="checkbox"] {
+  accent-color: #F77F35 !important;
+  background-color: #FFFFFF !important;
+  border-radius: 4px;
+}
+
+/* Webkit custom scrollbars with warm slate aesthetic */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF6F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #DDD4C7;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F77F35;
+}
+
+/* Table layouts for high readability and premium spacing */
+table {
+  border-color: #E4DDD3 !important;
+}
+th {
+  background-color: #FAF5EE !important;
+  color: #5C564E !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #E4DDD3 !important;
+}
+td {
+  border-bottom: 1px solid #FAF5EE !important;
+  background-color: #FFFFFF !important;
+  color: #2B2927 !important;
+}
+
+/* Print layout tweaks */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-section, .print-section * {
+    visibility: visible;
+  }
+  .print-section {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background-color: white !important;
+    color: black !important;
+  }
+}

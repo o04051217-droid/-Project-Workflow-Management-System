@@ -1,0 +1,6 @@
+{
+  "name": "專案全流程管理系統",
+  "description": "橫跨需求確認、議價報價、簽約、啟動執行與結案核銷之五階段專案流程管理平台，支援角色權限切換、里程碑管理、檔案檢核與報價單產出。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
