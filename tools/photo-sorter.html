@@ -771,7 +771,7 @@ function updateButtons(){
   $('hint').textContent = items.length && phase !== 'idle' ? '可繼續拖入檔案加入整理' : '';
 }
 
-/* ================= 中央整理動畫（縮圖浮動網格 → 逐張平移入資料夾） ================= */
+/* ================= 中央整理動畫（照片圓盤轉動 → 化成楓葉飄進資料夾） ================= */
 const cv = $('fx'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, area = { x: 0, y: 0, w: 100, h: 100 };
 function resize(){
@@ -788,24 +788,29 @@ function stageArea(){
   const r = $('stage').getBoundingClientRect(), p = 18;
   return { x: r.left + p, y: r.top + p, w: Math.max(40, r.width - 2 * p), h: Math.max(40, r.height - 2 * p - 14) };
 }
-// 整齊網格：找出讓縮圖最大的欄數
+// 圓盤：向日葵螺旋把縮圖排成一個圓，整個圓盤緩慢轉動
+const golden = Math.PI * (3 - Math.sqrt(5));
+let rot = 0;
 function relayout(){
   area = stageArea();
   grid = items.filter(i => i.state === 'grid' || i.state === 'pop');
   const n = Math.max(1, grid.length);
-  let best = { s: 0, cols: 1, rows: 1 };
-  for (let cols = 1; cols <= n; cols++){
-    const rows = Math.ceil(n / cols);
-    const s = Math.min(area.w / (cols + (cols - 1) * .14), area.h / (rows + (rows - 1) * .14));
-    if (s > best.s) best = { s, cols, rows };
-    if (rows === 1) break;
-  }
-  const s = Math.min(84, best.s), gap = s * .14;
-  const gw = best.cols * s + (best.cols - 1) * gap, gh = best.rows * s + (best.rows - 1) * gap;
-  const ox = area.x + (area.w - gw) / 2 + s / 2, oy = area.y + (area.h - gh) / 2 + s / 2;
-  grid.forEach((it, k) => { const c = k % best.cols, r = Math.floor(k / best.cols); it.tx = ox + c * (s + gap); it.ty = oy + r * (s + gap); it.ts = s; it.ph = k * .7; });
+  const R = Math.min(area.w, area.h) / 2 * .94;
+  const s = Math.max(10, Math.min(78, R * 1.8 / Math.sqrt(n)));
+  const Rp = Math.max(0, R - s * .55);
+  area.cx = area.x + area.w / 2; area.cy = area.y + area.h / 2; area.R = R;
+  grid.forEach((it, k) => {
+    const r = n === 1 ? 0 : Rp * Math.sqrt((k + .5) / n), a = k * golden;
+    it.bx = r * Math.cos(a); it.by = r * Math.sin(a); it.ts = s; it.ph = k * .7;
+  });
   layoutN = grid.length;
 }
+// 葉片路徑（24×24 座標）：照片用楓葉，影片用銀杏
+const MAPLE_P = new Path2D('M12 1l1.6 4.6 3.6-2-1 4.4 4.6-.6-3 3.4 3.6 2.2-4.6.8.6 3.6-3.8-2.2L12 21l-1.6-5.8-3.8 2.2.6-3.6-4.6-.8 3.6-2.2-3-3.4 4.6.6-1-4.4 3.6 2z');
+const GINKGO_P = new Path2D('M12 21C11 15 4 13 2.5 7.5 6 3.5 9 3 12 6c3-3 6-2.5 9.5 1.5C20 13 13 15 12 21z');
+const STEM_P = new Path2D('M12 20.5v3');
+const MAPLE_C = ['#C87968', '#B8654F', '#D08B6E', '#C9734F', '#B9806F'];
+const GINKGO_C = ['#D7B765', '#CFA94E', '#DCC27E'];
 const easeOut = t => 1 - Math.pow(1 - t, 3);
 const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 let last = performance.now();
@@ -813,6 +818,7 @@ let launchList = [], launchStart = 0, launchIdx = 0, launchTimes = [];
 function frame(now){
   const dt = Math.min(50, now - last); last = now;
   const still = reduceMQ.matches;
+  if (!still) rot += dt * .00016;
   if (popQueue.length){
     const backlog = popQueue.length;
     const gapMs = still ? 0 : backlog > 60 ? 0 : backlog > 15 ? 14 : 45;
@@ -828,67 +834,97 @@ function frame(now){
     while (launchIdx < launchList.length && el >= launchTimes[launchIdx]){
       const it = launchList[launchIdx], frac = launchIdx / Math.max(1, launchList.length);
       const c = cards.get(it.cat), tg = cardTarget(c);
-      it.fly = { t0: now, dur: still ? 0 : 900 - 480 * Math.pow(frac, .7), x0: it.x, y0: it.y, s0: it.s, x1: tg.x, y1: tg.y, s1: Math.max(12, tg.s * .8), card: c };
+      const dx = tg.x - it.x, dy = tg.y - it.y, dist = Math.hypot(dx, dy) || 1;
+      const side = dx >= 0 ? 1 : -1;
+      const video = it.kind === 'video';
+      it.fly = { t0: now, dur: still ? 0 : 1300 - 600 * Math.pow(frac, .7), x0: it.x, y0: it.y, s0: it.s, a0: it.a || 0,
+        cx: (it.x + tg.x) / 2 - dy / dist * 60 * side, cy: Math.min(it.y, tg.y) - Math.min(140, dist * .3),
+        x1: tg.x, y1: tg.y, leaf: Math.max(16, Math.min(30, it.s * .9)),
+        color: (video ? GINKGO_C : MAPLE_C)[it.id % (video ? 3 : 5)], path: video ? GINKGO_P : MAPLE_P,
+        spin: (it.id % 2 ? 1 : -1) * (2.5 + (it.id % 5) * .5), sway: 10 + (it.id % 7) * 3, card: c };
       it.state = 'fly'; launchIdx++;
     }
   }
-  const animating = popQueue.length || grid.some(i => i.state !== 'landed') || phase === 'sorting';
+  const animating = popQueue.length || grid.some(i => i.state === 'grid' || i.state === 'pop' || i.state === 'fly') || phase === 'sorting';
   if (animating || needDraw){
     needDraw = false;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const k = Math.min(1, dt * .012), t = now / 1000;
-    for (const it of grid){
-      if (it.state !== 'grid' && it.state !== 'pop') continue;
-      const fy = still ? 0 : Math.sin(t * 1.1 + it.ph) * Math.min(2.2, it.ts * .035);   // 輕柔浮動（不旋轉）
+    const live = grid.filter(i => i.state === 'grid' || i.state === 'pop');
+    if (live.length && area.R){   // 圓盤底：淡米杏和紙圓盤
+      ctx.fillStyle = 'rgba(242,233,218,.55)'; ctx.strokeStyle = 'rgba(205,189,166,.7)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(area.cx, area.cy, area.R + 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([3, 6]); ctx.beginPath(); ctx.arc(area.cx, area.cy, area.R * .55, rot, rot + Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const k = Math.min(1, dt * .012), cr = Math.cos(rot), sr = Math.sin(rot);
+    for (const it of live){
+      const tx = area.cx + it.bx * cr - it.by * sr, ty = area.cy + it.bx * sr + it.by * cr;
       let a = 1, sc = 1;
       if (it.state === 'pop'){
         const p = Math.min(1, (now - it.popT) / 450);
-        if (it.s === 0){ it.x = it.tx; it.y = it.ty + 10; it.s = it.ts; }
-        a = easeOut(p); sc = .86 + .14 * easeOut(p);
+        if (it.s === 0){ it.x = tx; it.y = ty; it.s = it.ts; }
+        a = easeOut(p); sc = .6 + .4 * easeOut(p);
         if (p >= 1) it.state = 'grid';
       }
-      it.x += (it.tx - it.x) * k; it.y += (it.ty - it.y) * k; it.s += (it.ts - it.s) * k;
-      drawTile(it, it.x, it.y + fy, it.s * sc, a);
+      it.x += (tx - it.x) * k; it.y += (ty - it.y) * k; it.s += (it.ts - it.s) * k; it.a = rot;
+      drawTile(it, it.x, it.y, it.s * sc, a, rot);
     }
     let flying = 0;
     for (const it of launchList){
       if (it.state !== 'fly') continue;
-      const f = it.fly, p = f.dur ? Math.min(1, (now - f.t0) / f.dur) : 1, e = easeInOut(p);
-      const lift = Math.sin(Math.PI * e) * Math.min(28, Math.hypot(f.x1 - f.x0, f.y1 - f.y0) * .06);
-      const x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e - lift;
-      const a = p < .12 ? .82 + 1.5 * p : p > .82 ? Math.max(0, 1 - (p - .82) / .18) : 1;   // 極輕微淡入淡出
+      const f = it.fly, p = f.dur ? Math.min(1, (now - f.t0) / f.dur) : 1;
+      // 前 30%：照片在原位縮小淡出、楓葉長出（化成葉片）；之後葉片沿弧線飄進資料夾
+      const m = Math.min(1, p / .3);
+      const q = p < .3 ? 0 : easeInOut((p - .3) / .7);
+      const u = 1 - q;
+      let x = u * u * f.x0 + 2 * u * q * f.cx + q * q * f.x1;
+      let y = u * u * f.y0 + 2 * u * q * f.cy + q * q * f.y1;
+      x += Math.sin(q * Math.PI * 3) * f.sway * (1 - q);           // 左右擺動
+      if (m < 1) drawTile(it, f.x0, f.y0, f.s0 * (1 - .55 * m), 1 - m, f.a0 + m * .6);
+      const ls = f.leaf * (p < .3 ? easeOut(m) : 1 - .35 * q);
+      const la = p > .9 ? Math.max(0, 1 - (p - .9) / .1) : Math.min(1, m * 1.2);
+      drawLeaf(f, x, y, ls, f.a0 + f.spin * p + Math.sin(p * 9) * .35, la);
       it.x = x; it.y = y;
-      drawTile(it, x, y, f.s0 + (f.s1 - f.s0) * e, a);
       if (p >= 1) land(it); else flying++;
     }
     if (phase === 'sorting' && launchIdx >= launchList.length && flying === 0) finishSort();
   }
   requestAnimationFrame(frame);
 }
-function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-function drawTile(it, x, y, s, alpha){
+function drawLeaf(f, x, y, s, ang, alpha){
   if (s < 1 || alpha <= 0) return;
+  const c = Math.cos(ang), sn = Math.sin(ang), k = s / 24;
+  ctx.setTransform(DPR * c * k, DPR * sn * k, -DPR * sn * k, DPR * c * k, x * DPR, y * DPR);
+  ctx.translate(-12, -12);
+  ctx.globalAlpha = alpha * .95;
+  ctx.fillStyle = f.color; ctx.fill(f.path);
+  ctx.strokeStyle = f.color; ctx.lineWidth = 1; ctx.stroke(STEM_P);
+  ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function drawTile(it, x, y, s, alpha, ang){
+  if (s < 1 || alpha <= 0) return;
+  ang = ang || 0;
+  const c = Math.cos(ang), sn = Math.sin(ang);
+  ctx.setTransform(DPR * c, DPR * sn, -DPR * sn, DPR * c, x * DPR, y * DPR);
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
   const h = s / 2, b = Math.max(1.5, s * .05), big = s > 26;
-  ctx.fillStyle = 'rgba(89,72,61,.10)';
-  if (big){ rr(x - h + 1, y - h + 2, s, s, s * .1); ctx.fill(); }
+  if (big){ ctx.fillStyle = 'rgba(89,72,61,.10)'; rr(-h + 1, -h + 2, s, s, s * .1); ctx.fill(); }
   ctx.fillStyle = '#FFFDF8';
-  if (big){ rr(x - h, y - h, s, s, s * .1); ctx.fill(); } else ctx.fillRect(x - h, y - h, s, s);
-  ctx.drawImage(it.thumb, x - h + b, y - h + b, s - 2 * b, s - 2 * b);
-  const q = QUALITY_CATS.includes(it.cat);
-  if (q && s > 18){   // 待檢查標記：楓紅角標＋符號（不只靠顏色）
+  if (big){ rr(-h, -h, s, s, s * .1); ctx.fill(); } else ctx.fillRect(-h, -h, s, s);
+  ctx.drawImage(it.thumb, -h + b, -h + b, s - 2 * b, s - 2 * b);
+  if (QUALITY_CATS.includes(it.cat) && s > 18){   // 待檢查標記：楓紅角標＋符號（不只靠顏色）
     const r = Math.max(6, s * .17);
-    ctx.fillStyle = '#97574A'; ctx.beginPath(); ctx.arc(x + h - r * .7, y - h + r * .7, r * .75, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#97574A'; ctx.beginPath(); ctx.arc(h - r * .7, -h + r * .7, r * .75, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#FFFDF8'; ctx.font = `600 ${Math.round(r)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(QICON[it.cat] || '!', x + h - r * .7, y - h + r * .72);
+    ctx.fillText(QICON[it.cat] || '!', h - r * .7, -h + r * .72);
   }
   if (it.kind === 'video' && s > 22){
     const r = s * .14;
-    ctx.fillStyle = 'rgba(89,72,61,.55)'; ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#FFFDF8'; ctx.beginPath(); ctx.moveTo(x - r * .45, y - r * .7); ctx.lineTo(x + r * .75, y); ctx.lineTo(x - r * .45, y + r * .7); ctx.fill();
+    ctx.fillStyle = 'rgba(89,72,61,.55)'; ctx.beginPath(); ctx.arc(0, 0, r * 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFDF8'; ctx.beginPath(); ctx.moveTo(-r * .45, -r * .7); ctx.lineTo(r * .75, 0); ctx.lineTo(-r * .45, r * .7); ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 let lastHit = 0;
 function land(it){
@@ -912,8 +948,10 @@ function startSort(){
   if (phase !== 'ready') return;
   for (const it of popQueue.splice(0)) if (it.state === 'wait') it.state = 'grid';
   relayout();
-  for (const it of items) if (it.s === 0){ it.x = it.tx; it.y = it.ty; it.s = it.ts; }
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  for (const it of items) if (it.s === 0){ it.x = area.cx + it.bx * cr - it.by * sr; it.y = area.cy + it.bx * sr + it.by * cr; it.s = it.ts; it.a = rot; }
   launchList = items.filter(i => i.state === 'grid' || i.state === 'pop');
+  launchList.sort((a, b) => (b.bx * b.bx + b.by * b.by) - (a.bx * a.bx + a.by * a.by));   // 由外圈往內
   const n = launchList.length, L = reduceMQ.matches ? 0 : Math.min(7500, 1400 + n * 9);
   launchTimes = launchList.map((_, i) => L * Math.pow(i / Math.max(1, n), .5));   // 間隔越來越短
   launchIdx = 0; launchStart = performance.now(); sortedCount = 0;
