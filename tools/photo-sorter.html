@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>照片影片分類整理</title>
+<style>
+:root{
+  --bg:#0f1420;--bg2:#161d2d;--panel:#1b2335;--panel2:#222c42;--line:#2e3a55;
+  --text:#e8edf7;--muted:#93a0bb;--accent:#4f8cff;--accent2:#35c48f;--warn:#ffb547;--dup:#ff6b7a;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;font-size:14px}
+body{display:flex;flex-direction:column;height:100dvh;
+  background:radial-gradient(ellipse at 50% 40%,#1b2540 0%,var(--bg) 70%)}
+button,select{font:inherit;color:inherit}
+header{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 16px;
+  border-bottom:1px solid var(--line);background:rgba(15,20,32,.85);position:relative;z-index:20}
+.brand{font-weight:700;font-size:16px;white-space:nowrap}
+.brand small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.stats{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px 10px;text-align:center;min-width:58px}
+.stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat span{font-size:11px;color:var(--muted)}
+.stat.sorted b{color:var(--accent2)}
+.stat.dup b{color:var(--dup)}
+.bump{animation:bump .25s ease-out}
+@keyframes bump{0%{transform:scale(1.18)}100%{transform:scale(1)}}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.bar.tools{width:100%}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn kbd{font-size:11px;opacity:.75;border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-left:4px}
+select.btn{padding:6px 8px}
+main{flex:1 1 auto;min-height:0;display:grid;
+  grid-template-columns:minmax(0,clamp(92px,21vw,260px)) minmax(0,1fr) minmax(0,clamp(92px,21vw,260px));
+  gap:10px;padding:10px 12px 12px}
+.col{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0;overflow:hidden;justify-content:center}
+.card{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:6px 8px;min-height:0;min-width:0;overflow:hidden;flex:0 0 auto;transition:border-color .2s}
+.card .pv{flex:0 0 auto;width:40px;height:40px;border-radius:8px;background:var(--bg2) center/cover;
+  display:flex;align-items:center;justify-content:center;position:relative}
+.card .pv svg{width:24px;height:24px;opacity:.55}
+.card .pv canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:8px}
+.card .info{flex:1 1 auto;min-width:0}
+.card .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cnt{flex:0 0 auto;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.card.dupcard .cnt{color:var(--dup)}
+.card.hit{border-color:var(--accent2)}
+.card.compact .sub{display:none}
+.card.tiny .pv{display:none}
+.card.tiny{padding:2px 8px}
+.card.tiny .cnt{font-size:14px}
+#stage{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+#drop{width:min(520px,92%);border:2px dashed var(--line);border-radius:20px;padding:34px 20px;text-align:center;
+  background:rgba(27,35,53,.55);transition:border-color .2s,background .2s}
+#drop h2{font-size:20px;margin:10px 0 6px}
+#drop p{color:var(--muted);line-height:1.6}
+#drop .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+#drop svg{width:52px;height:52px;opacity:.8}
+body.dragging #drop,body.dragging #stage{border-color:var(--accent);background:rgba(79,140,255,.08)}
+body.has-files #drop{display:none}
+#status{position:absolute;left:0;right:0;bottom:2px;text-align:center;color:var(--muted);font-size:12px;pointer-events:none}
+#badge{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;z-index:30;
+  background:linear-gradient(135deg,#35c48f,#2a9d8f);color:#fff;border-radius:22px;padding:18px 28px;text-align:center;
+  box-shadow:0 18px 50px rgba(0,0,0,.45);transition:opacity .35s,transform .45s cubic-bezier(.2,1.6,.4,1);max-width:92vw}
+#badge.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
+#badge .big{font-size:24px;font-weight:800}
+#badge .small{font-size:13px;opacity:.92;margin-top:4px}
+#badge .row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+#badge .btn{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.35);color:#fff}
+#fx{position:fixed;inset:0;width:100vw;height:100dvh;pointer-events:none;z-index:10}
+#modal{position:fixed;inset:0;background:rgba(5,8,14,.7);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+#modal.show{display:flex}
+#modal .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;width:min(640px,100%);
+  max-height:100%;display:flex;flex-direction:column;gap:10px;min-height:0}
+#modal h3{font-size:16px}
+#modal p{color:var(--muted);font-size:13px;line-height:1.6}
+#modal textarea{flex:1 1 auto;min-height:140px;height:40vh;width:100%;resize:none;background:var(--bg2);color:var(--text);
+  border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,Consolas,monospace}
+#modal .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b1020;border:1px solid var(--line);
+  border-radius:10px;padding:9px 14px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92vw;text-align:center}
+#toast.show{opacity:1}
+@media (max-width:720px){
+  header{padding:8px 10px;gap:6px 8px}
+  .brand small{display:none}
+  .stat{min-width:46px;padding:2px 6px}
+  .stat b{font-size:14px}
+  .btn{padding:5px 8px;font-size:12px}
+  .btn kbd{display:none}
+  main{gap:6px;padding:6px}
+  .card{gap:4px;padding:4px 5px}
+  .card .pv{width:28px;height:28px}
+  .card .sub{display:none}
+  .card .name{font-size:12px}
+  .card .cnt{font-size:14px}
+  #drop{padding:22px 12px}
+}
+@media (max-width:480px){
+  .brand{display:none}
+  .stats{width:100%;justify-content:space-between}
+  .stat{flex:1 1 0}
+}
+@media (max-width:420px){
+  .card .pv{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">照片影片分類整理<small>拖放資料夾 → 自動分類 → 匯出</small></div>
+  <div class="stats">
+    <div class="stat"><b id="sTotal">0</b><span>總檔案</span></div>
+    <div class="stat"><b id="sPhoto">0</b><span>照片</span></div>
+    <div class="stat"><b id="sVideo">0</b><span>影片</span></div>
+    <div class="stat dup"><b id="sDup">0</b><span>重複</span></div>
+    <div class="stat sorted"><b id="sSorted">0</b><span>已整理</span></div>
+  </div>
+  <div class="bar">
+    <button class="btn" id="bDir">選資料夾</button>
+    <button class="btn" id="bFiles">選檔案</button>
+    <select class="btn" id="mode" title="分類方式">
+      <option value="month">依拍攝月份</option>
+      <option value="year">依拍攝年份</option>
+      <option value="type">依照片／影片</option>
+      <option value="claude" disabled>Claude 分類</option>
+    </select>
+    <button class="btn primary" id="bSort" disabled>開始整理<kbd>S</kbd></button>
+    <button class="btn" id="bReset" disabled>重播<kbd>R</kbd></button>
+    <button class="btn" id="bClear" disabled>清空</button>
+  </div>
+  <div class="bar tools">
+    <button class="btn" id="bSheet" disabled>下載分類總表</button>
+    <button class="btn" id="bPrompt" disabled>複製提示詞</button>
+    <button class="btn" id="bPaste" disabled>貼上 Claude 回覆</button>
+    <button class="btn" id="bSave" disabled>存到資料夾</button>
+    <button class="btn" id="bZip" disabled>下載 ZIP</button>
+    <button class="btn" id="bCsv" disabled>下載 CSV</button>
+  </div>
+</header>
+<main>
+  <aside class="col" id="left"></aside>
+  <section id="stage">
+    <div id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>
+      <h2>把照片或影片資料夾拖進來</h2>
+      <p>支援整個資料夾（含子資料夾）、多選檔案。<br>所有處理都在你的瀏覽器內完成，不會上傳，也不會修改原始檔。</p>
+      <div class="row">
+        <button class="btn primary" id="dDir">選資料夾</button>
+        <button class="btn" id="dFiles">選檔案</button>
+      </div>
+    </div>
+    <div id="status"></div>
+  </section>
+  <aside class="col" id="right"></aside>
+</main>
+<canvas id="fx"></canvas>
+<div id="badge">
+  <div class="big">✓ 整理完成</div>
+  <div class="small" id="badgeText"></div>
+  <div class="row">
+    <button class="btn" id="kSave">存到資料夾</button>
+    <button class="btn" id="kZip">下載 ZIP</button>
+    <button class="btn" id="kCsv">下載 CSV</button>
+    <button class="btn" id="kClose">關閉</button>
+  </div>
+</div>
+<div id="modal"><div class="box">
+  <h3 id="mTitle"></h3>
+  <p id="mDesc"></p>
+  <textarea id="mText" spellcheck="false"></textarea>
+  <div class="row">
+    <button class="btn" id="mCancel">取消</button>
+    <button class="btn primary" id="mOk">套用</button>
+  </div>
+</div></div>
+<div id="toast"></div>
+<input type="file" id="inDir" webkitdirectory directory multiple hidden>
+<input type="file" id="inFiles" multiple hidden accept="image/*,video/*,.heic,.heif,.dng,.cr2,.cr3,.nef,.arw,.mts,.m2ts,.mkv">
+<script>
+'use strict';
+/* ========= 基本設定 ========= */
+const PHOTO_EXT = new Set('jpg jpeg jpe png gif webp bmp tif tiff heic heif avif dng cr2 cr3 nef arw orf rw2 raf svg'.split(' '));
+const VIDEO_EXT = new Set('mp4 mov m4v avi mkv webm 3gp 3g2 mts m2ts wmv mpg mpeg flv'.split(' '));
+const THUMB = 72;            // 縮圖像素
+const DUP_CAT = '重複檔';
+const UNKNOWN_CAT = '日期不明';
+const UNSORTED_CAT = '未分類';
+const $ = id => document.getElementById(id);
+
+/* ========= 狀態 ========= */
+const items = [];            // 每個檔案一筆
+let nextId = 1;
+let mode = 'month';
+let phase = 'idle';          // idle | ready | sorting | done
+let sortedCount = 0;
+let cards = new Map();       // 分類名 -> {el,cntEl,pv,count,photo,video}
+let pendingThumbs = 0, hashing = false, analyzeTimer = 0, dirty = false;
+let rot = 0;
+let layoutN = -1;
+const popQueue = [];
+let lastPop = 0;
+
+/* ========= 小工具 ========= */
+const ext = n => { const i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); };
+const pad = n => String(n).padStart(2, '0');
+function fmtDate(d){ return d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : ''; }
+function fmtSize(b){ return b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : b < 1073741824 ? (b/1048576).toFixed(1) + ' MB' : (b/1073741824).toFixed(2) + ' GB'; }
+function toast(msg, ms = 2600){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms); }
+function bump(el){ el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+function safeName(s){ return String(s).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/^\.+/, '_').trim().slice(0, 80) || UNSORTED_CAT; }
+function download(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+function stamp(){ const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`; }
+
+/* ========= 加入檔案 ========= */
+function kindOf(file){
+  const e = ext(file.name), t = file.type || '';
+  if (t.startsWith('video/') || VIDEO_EXT.has(e)) return 'video';
+  if (t.startsWith('image/') || PHOTO_EXT.has(e)) return 'photo';
+  return null;
+}
+function addFiles(list){
+  let added = 0, skipped = 0;
+  if (phase === 'sorting' || phase === 'done') resetSort(true);
+  for (const { file, path } of list){
+    const base = file.name;
+    if (base.startsWith('.') || /^thumbs\.db$/i.test(base) || /^desktop\.ini$/i.test(base)) { skipped++; continue; }
+    const kind = kindOf(file);
+    if (!kind){ skipped++; continue; }
+    const it = { id: nextId++, file, path: path || file.name, name: file.name, kind, size: file.size,
+      date: null, dateSrc: '', duration: null, thumb: null, hash: null, dupOf: null, custom: null, cat: '',
+      x: 0, y: 0, s: 0, a: 0, state: 'wait', popT: 0, fly: null, tilt: (Math.random() - .5) * .22 };
+    items.push(it); added++; dirty = true;
+    analyzeItem(it);
+  }
+  if (added){ document.body.classList.add('has-files'); phase = 'ready'; }
+  refreshStats(); updateButtons();
+  toast(`加入 ${added} 個檔案` + (skipped ? `，略過 ${skipped} 個非照片／影片檔` : ''));
+  scheduleHash();
+}
+function collectInput(input){
+  const arr = [...input.files].map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
+  input.value = ''; addFiles(arr);
+}
+async function readEntry(entry, out){
+  if (entry.isFile){
+    await new Promise(res => entry.file(f => { out.push({ file: f, path: entry.fullPath.replace(/^\//, '') }); res(); }, res));
+  } else if (entry.isDirectory){
+    const reader = entry.createReader();
+    for (;;){
+      const batch = await new Promise(res => reader.readEntries(res, () => res([])));
+      if (!batch.length) break;
+      for (const e of batch) await readEntry(e, out);
+    }
+  }
+}
+async function handleDrop(dt){
+  const entries = [], loose = [];
+  if (dt.items && dt.items.length && dt.items[0].webkitGetAsEntry){
+    for (const it of dt.items){ if (it.kind !== 'file') continue; const e = it.webkitGetAsEntry(); if (e) entries.push(e); else { const f = it.getAsFile(); if (f) loose.push({ file: f, path: f.name }); } }
+  } else for (const f of dt.files) loose.push({ file: f, path: f.name });
+  setStatus('讀取資料夾內容…');
+  const out = [...loose];
+  for (const e of entries) await readEntry(e, out);
+  setStatus('');
+  addFiles(out);
+}
+
+/* ========= 分析：日期、縮圖 ========= */
+const imgQ = [], vidQ = []; let imgRun = 0, vidRun = 0;
+function analyzeItem(it){
+  pendingThumbs++;
+  (it.kind === 'video' ? vidQ : imgQ).push(it);
+  pump();
+}
+function pump(){
+  while (imgRun < 6 && imgQ.length){ const it = imgQ.shift(); imgRun++; processItem(it).finally(() => { imgRun--; done(it); pump(); }); }
+  while (vidRun < 2 && vidQ.length){ const it = vidQ.shift(); vidRun++; processItem(it).finally(() => { vidRun--; done(it); pump(); }); }
+}
+function done(it){
+  pendingThumbs--;
+  if (!items.includes(it)) return;
+  popQueue.push(it);
+  updateStatus();
+  if (pendingThumbs === 0) scheduleHash();
+}
+async function processItem(it){
+  try { await readDate(it); } catch(e){}
+  try { it.thumb = it.kind === 'video' ? await videoThumb(it) : await imageThumb(it.file); } catch(e){ it.thumb = null; }
+  if (!it.thumb) it.thumb = placeholder(it);
+}
+async function readDate(it){
+  if (it.kind === 'photo' && /^(jpe?g|jpe)$/.test(ext(it.name))){
+    const buf = await it.file.slice(0, 262144).arrayBuffer();
+    const d = exifDate(new DataView(buf));
+    if (d){ it.date = d; it.dateSrc = 'EXIF'; return; }
+  }
+  const m = it.name.match(/(19\d{2}|20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?:[-_ T]?([01]\d|2[0-3])[-_.:]?([0-5]\d)[-_.:]?([0-5]\d))?/);
+  if (m){ it.date = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)); it.dateSrc = '檔名'; return; }
+  if (it.file.lastModified){ it.date = new Date(it.file.lastModified); it.dateSrc = '修改時間'; }
+}
+function exifDate(v){
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return null;
+  let p = 2;
+  while (p + 4 < v.byteLength){
+    if (v.getUint8(p) !== 0xFF) return null;
+    const mk = v.getUint8(p + 1), len = v.getUint16(p + 2);
+    if (mk === 0xE1 && p + 10 < v.byteLength && v.getUint32(p + 4) === 0x45786966){
+      const t = p + 10; if (t + 8 > v.byteLength) return null;
+      const le = v.getUint16(t) === 0x4949;
+      const u16 = o => v.getUint16(t + o, le), u32 = o => v.getUint32(t + o, le);
+      const readIfd = (off, want) => {
+        if (t + off + 2 > v.byteLength) return null;
+        const n = u16(off);
+        for (let i = 0; i < n; i++){
+          const e = off + 2 + i * 12; if (t + e + 12 > v.byteLength) break;
+          if (u16(e) === want) return { type: u16(e + 2), count: u32(e + 4), val: u32(e + 8) };
+        }
+        return null;
+      };
+      const str = en => { if (!en) return null; let s = ''; for (let i = 0; i < 19 && t + en.val + i < v.byteLength; i++) s += String.fromCharCode(v.getUint8(t + en.val + i)); return s; };
+      const parse = s => { const m = s && s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/); if (!m || m[1] === '0000') return null; return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); };
+      const ifd0 = u32(4);
+      const ex = readIfd(ifd0, 0x8769);
+      if (ex){ const d = parse(str(readIfd(ex.val, 0x9003))) || parse(str(readIfd(ex.val, 0x9004))); if (d) return d; }
+      return parse(str(readIfd(ifd0, 0x0132)));
+    }
+    if (mk === 0xDA) return null;
+    p += 2 + len;
+  }
+  return null;
+}
+function squareCanvas(src, sw, sh){
+  const c = document.createElement('canvas'); c.width = c.height = THUMB;
+  const g = c.getContext('2d'); const m = Math.min(sw, sh);
+  g.drawImage(src, (sw - m) / 2, (sh - m) / 2, m, m, 0, 0, THUMB, THUMB);
+  return c;
+}
+async function imageThumb(file){
+  if ('createImageBitmap' in window){
+    try {
+      const bm = await createImageBitmap(file, { resizeWidth: THUMB * 2, resizeQuality: 'low' });
+      const c = squareCanvas(bm, bm.width, bm.height); bm.close(); return c;
+    } catch(e){}
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    return squareCanvas(img, img.naturalWidth, img.naturalHeight);
+  } finally { URL.revokeObjectURL(url); }
+}
+function videoThumb(it){
+  return new Promise(resolve => {
+    const v = document.createElement('video'); const url = URL.createObjectURL(it.file);
+    let fin = false;
+    const end = c => { if (fin) return; fin = true; clearTimeout(to); v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); resolve(c); };
+    const to = setTimeout(() => end(null), 10000);
+    v.muted = true; v.playsInline = true; v.preload = 'metadata';
+    v.onloadedmetadata = () => { it.duration = isFinite(v.duration) ? v.duration : null; try { v.currentTime = Math.min(1, (v.duration || 1) * 0.1); } catch(e){ end(null); } };
+    v.onseeked = () => { try { end(v.videoWidth ? squareCanvas(v, v.videoWidth, v.videoHeight) : null); } catch(e){ end(null); } };
+    v.onerror = () => end(null);
+    v.src = url;
+  });
+}
+function placeholder(it){
+  const c = document.createElement('canvas'); c.width = c.height = THUMB; const g = c.getContext('2d');
+  const hue = it.kind === 'video' ? 265 : 210;
+  const gr = g.createLinearGradient(0, 0, THUMB, THUMB); gr.addColorStop(0, `hsl(${hue},45%,38%)`); gr.addColorStop(1, `hsl(${hue + 30},45%,24%)`);
+  g.fillStyle = gr; g.fillRect(0, 0, THUMB, THUMB);
+  g.fillStyle = 'rgba(255,255,255,.9)'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText((ext(it.name) || '?').toUpperCase().slice(0, 5), THUMB / 2, THUMB / 2);
+  return c;
+}
+
+/* ========= 重複檔偵測（相同內容） ========= */
+function scheduleHash(){ clearTimeout(analyzeTimer); analyzeTimer = setTimeout(runHash, 200); }
+async function digest(file){
+  const LIM = 64 * 1048576, PART = 8 * 1048576;
+  let buf;
+  if (file.size <= LIM) buf = await file.arrayBuffer();
+  else {
+    const parts = [file.slice(0, PART), file.slice(Math.floor(file.size / 2) - PART / 2, Math.floor(file.size / 2) + PART / 2), file.slice(file.size - PART)];
+    buf = await new Blob([...parts, String(file.size)]).arrayBuffer();
+  }
+  if (crypto.subtle){ const h = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join(''); }
+  // 非安全環境（file://）時的後備雜湊
+  const u = new Uint8Array(buf); let h1 = 0x811c9dc5, h2 = 0x01000193 ^ u.length;
+  for (let i = 0; i < u.length; i++){ h1 = Math.imul(h1 ^ u[i], 16777619); h2 = Math.imul(h2 + u[i], 2246822519) ^ (h2 >>> 13); }
+  return (h1 >>> 0).toString(16) + (h2 >>> 0).toString(16) + ':' + u.length;
+}
+let hashAgain = false, hashDone = 0, hashTotal = 0;
+async function runHash(){
+  if (hashing){ hashAgain = true; return; }
+  hashing = true; updateButtons();
+  do {
+    hashAgain = false;
+    const bySize = new Map();
+    for (const it of items){ if (!bySize.has(it.size)) bySize.set(it.size, []); bySize.get(it.size).push(it); }
+    const todo = [];
+    for (const g of bySize.values()) if (g.length > 1) for (const it of g) if (!it.hash) todo.push(it);
+    hashDone = 0; hashTotal = todo.length; let idx = 0;
+    // 讀檔以延遲為主，平行處理可大幅縮短時間
+    const worker = async () => {
+      while (idx < todo.length){
+        const it = todo[idx++];
+        try { it.hash = await digest(it.file); } catch(e){ it.hash = 'err-' + it.id; }
+        hashDone++; if (hashDone % 10 === 0) updateStatus();
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, worker));
+  } while (hashAgain);
+  const first = new Map();
+  for (const it of items){
+    it.dupOf = null;
+    if (!it.hash) continue;
+    const k = it.size + ':' + it.hash;
+    if (first.has(k)) it.dupOf = first.get(k).id; else first.set(k, it);
+  }
+  hashing = false;
+  if (pendingThumbs > 0){ refreshStats(); updateStatus(); return; }   // 縮圖完成時會再呼叫一次
+  rebuildCards(); refreshStats(); updateButtons(); updateStatus();
+}
+
+/* ========= 分類 ========= */
+function catOf(it){
+  if (it.dupOf) return DUP_CAT;
+  if (mode === 'claude') return it.custom || UNSORTED_CAT;
+  if (mode === 'type') return it.kind === 'video' ? '影片' : '照片';
+  if (!it.date) return UNKNOWN_CAT;
+  return mode === 'year' ? `${it.date.getFullYear()}年` : `${it.date.getFullYear()}-${pad(it.date.getMonth() + 1)}`;
+}
+const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>';
+function rebuildCards(){
+  for (const it of items) it.cat = catOf(it);
+  const groups = new Map();
+  for (const it of items){ if (!groups.has(it.cat)) groups.set(it.cat, { photo: 0, video: 0 }); groups.get(it.cat)[it.kind]++; }
+  const special = [UNKNOWN_CAT, UNSORTED_CAT, DUP_CAT];
+  const names = [...groups.keys()].sort((a, b) => {
+    const sa = special.indexOf(a), sb = special.indexOf(b);
+    if (sa !== sb) return sa - sb;
+    return a.localeCompare(b, 'zh-Hant', { numeric: true });
+  });
+  cards = new Map(); dirty = false;
+  $('left').innerHTML = ''; $('right').innerHTML = '';
+  const half = Math.ceil(names.length / 2);
+  names.forEach((name, i) => {
+    const g = groups.get(name);
+    const el = document.createElement('div'); el.className = 'card' + (name === DUP_CAT ? ' dupcard' : '');
+    el.innerHTML = `<div class="pv">${ICON}<canvas width="${THUMB}" height="${THUMB}"></canvas></div><div class="info"><div class="name"></div><div class="sub"></div></div><div class="cnt">0</div>`;
+    el.querySelector('.name').textContent = name;
+    el.querySelector('.name').title = name;
+    el.querySelector('.sub').textContent = [g.photo ? `照片 ${g.photo}` : '', g.video ? `影片 ${g.video}` : ''].filter(Boolean).join(' · ');
+    (i < half ? $('left') : $('right')).appendChild(el);
+    cards.set(name, { el, cntEl: el.querySelector('.cnt'), pv: el.querySelector('canvas'), count: 0, total: g.photo + g.video, rect: null });
+  });
+  fitCards();
+}
+function fitCards(){
+  for (const col of [$('left'), $('right')]){
+    const kids = [...col.children]; if (!kids.length) continue;
+    const H = col.clientHeight, gap = 6;
+    const h = Math.max(18, Math.min(58, (H - gap * (kids.length - 1)) / kids.length));
+    for (const k of kids){ k.style.height = h + 'px'; k.classList.toggle('compact', h < 46); k.classList.toggle('tiny', h < 32); }
+    col.style.gap = (h < 24 ? 3 : gap) + 'px';
+  }
+  for (const c of cards.values()) c.rect = null;
+}
+function cardTarget(c){
+  if (!c.rect){
+    const pv = c.el.querySelector('.pv'); const r = (pv && pv.offsetParent ? pv : c.el).getBoundingClientRect();
+    c.rect = { x: r.left + r.width / 2, y: r.top + r.height / 2, s: Math.max(14, Math.min(r.width, r.height)) };
+  }
+  return c.rect;
+}
+
+/* ========= 數字 ========= */
+function refreshStats(){
+  const total = items.length, photo = items.filter(i => i.kind === 'photo').length;
+  setNum('sTotal', total); setNum('sPhoto', photo); setNum('sVideo', total - photo);
+  setNum('sDup', items.filter(i => i.dupOf).length); setNum('sSorted', sortedCount);
+}
+function setNum(id, v){ const el = $(id); if (el.textContent !== String(v)){ el.textContent = v; bump(el); } }
+function setStatus(s){ $('status').textContent = s; }
+function updateStatus(){
+  if (!items.length) return setStatus('');
+  const hs = hashing && hashTotal ? ` · 比對重複檔 ${hashDone}/${hashTotal}` : '';
+  if (pendingThumbs > 0) return setStatus(`產生縮圖 ${items.length - pendingThumbs}/${items.length}` + hs);
+  if (hashing) return setStatus(hs ? hs.slice(3) : '比對重複檔…');
+  if (dirty) return setStatus('整理分類中…');
+  if (phase === 'ready') return setStatus(`準備完成：${cards.size} 個分類。按「開始整理」或 S`);
+  if (phase === 'sorting') return setStatus('整理中…');
+  if (phase === 'done') return setStatus('整理完成，可存到資料夾或下載 ZIP／CSV。按 R 重播');
+}
+function analyzed(){ return items.length > 0 && pendingThumbs === 0 && !hashing && !dirty && cards.size > 0; }
+function updateButtons(){
+  const ok = analyzed(), busy = phase === 'sorting' || exporting;
+  $('bSort').disabled = !ok || phase !== 'ready' || busy;
+  $('bReset').disabled = !ok || phase === 'ready' || exporting;
+  $('bClear').disabled = !items.length || busy;
+  for (const id of ['bSheet', 'bPrompt', 'bPaste']) $(id).disabled = !ok || busy;
+  for (const id of ['bSave', 'bZip', 'bCsv']) $(id).disabled = !ok || busy;
+  $('mode').disabled = busy;
+}
+
+/* ========= 動畫 ========= */
+const cv = $('fx'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, center = { x: 0, y: 0, R: 100 };
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  const r = $('stage').getBoundingClientRect();
+  center = { x: r.left + r.width / 2, y: r.top + r.height / 2 - 6, R: Math.max(40, Math.min(r.width, r.height - 24) * 0.46) };
+  layoutN = -1; fitCards();
+}
+window.addEventListener('resize', resize);
+const golden = Math.PI * (3 - Math.sqrt(5));
+let ring = [];
+function relayout(){
+  ring = items.filter(i => i.state === 'ring' || i.state === 'pop');
+  const n = Math.max(1, ring.length);
+  const s = Math.max(8, Math.min(76, center.R * 1.95 / Math.sqrt(n)));
+  const R = Math.max(0, center.R - s * 0.5);
+  ring.forEach((it, k) => {
+    const r = n === 1 ? 0 : R * Math.sqrt((k + 0.5) / n), a = k * golden;
+    it.bx = r * Math.cos(a); it.by = r * Math.sin(a); it.ts = s;
+  });
+  layoutN = ring.length;
+}
+const easeOutBack = t => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const easeInOut = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+let last = performance.now();
+let launchList = [], launchStart = 0, launchIdx = 0, launchTimes = [];
+function frame(now){
+  const dt = Math.min(50, now - last); last = now;
+  rot += dt * 0.00011;
+  // 一張張彈出
+  if (popQueue.length){
+    const backlog = popQueue.length;
+    const gapMs = backlog > 60 ? 0 : backlog > 15 ? 12 : 40;
+    if (now - lastPop >= gapMs){
+      const k = backlog > 60 ? Math.ceil(backlog / 45) : 1;
+      for (let i = 0; i < k && popQueue.length; i++){
+        const it = popQueue.shift();
+        if (it.state !== 'wait') continue;
+        it.state = 'pop'; it.popT = now;
+      }
+      lastPop = now; layoutN = -1;
+    }
+  }
+  if (layoutN === -1 && phase !== 'sorting') relayout();
+  // 依序發射（越來越快）
+  if (phase === 'sorting'){
+    const el = now - launchStart;
+    while (launchIdx < launchList.length && el >= launchTimes[launchIdx]){
+      const it = launchList[launchIdx], frac = launchIdx / Math.max(1, launchList.length);
+      const c = cards.get(it.cat), tg = cardTarget(c);
+      const dx = tg.x - it.x, dy = tg.y - it.y, dist = Math.hypot(dx, dy);
+      const bend = Math.min(220, dist * 0.45) * (dx >= 0 ? 1 : -1);
+      it.fly = { t0: now, dur: 1000 - 560 * Math.pow(frac, 0.7), x0: it.x, y0: it.y, s0: it.s,
+        cx: (it.x + tg.x) / 2 - dy / Math.max(1, dist) * bend * 0.4, cy: Math.min(it.y, tg.y) - Math.min(260, dist * 0.42),
+        x1: tg.x, y1: tg.y, s1: Math.max(12, tg.s * 0.8), card: c };
+      it.state = 'fly'; launchIdx++;
+    }
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  const k = Math.min(1, dt * 0.01);
+  for (let i = 0; i < ring.length; i++){
+    const it = ring[i];
+    if (it.state !== 'ring' && it.state !== 'pop') continue;
+    const tx = center.x + it.bx * cr - it.by * sr, ty = center.y + it.bx * sr + it.by * cr;
+    let scale = 1;
+    if (it.state === 'pop'){
+      const t = Math.min(1, (now - it.popT) / 420);
+      if (it.s === 0){ it.x = tx; it.y = ty; it.s = it.ts; }
+      scale = easeOutBack(t);
+      if (t >= 1) it.state = 'ring';
+    }
+    it.x += (tx - it.x) * k; it.y += (ty - it.y) * k; it.s += (it.ts - it.s) * k;
+    it.a = rot + it.tilt;
+    drawTile(it, it.x, it.y, it.s * scale, it.a, 1);
+  }
+  let flying = 0;
+  for (const it of launchList){
+    if (it.state !== 'fly') continue;
+    const f = it.fly, t = Math.min(1, (now - f.t0) / f.dur), e = easeInOut(t), u = 1 - e;
+    const x = u * u * f.x0 + 2 * u * e * f.cx + e * e * f.x1, y = u * u * f.y0 + 2 * u * e * f.cy + e * e * f.y1;
+    const s = f.s0 + (f.s1 - f.s0) * e;
+    it.x = x; it.y = y;
+    drawTile(it, x, y, s, it.a * (1 - e), t > .9 ? 1 - (t - .9) * 6 : 1);
+    if (t >= 1) land(it); else flying++;
+  }
+  if (phase === 'sorting' && launchIdx >= launchList.length && flying === 0) finishSort();
+  requestAnimationFrame(frame);
+}
+function drawTile(it, x, y, s, a, alpha){
+  if (s < 1) return;
+  const c = Math.cos(a), sn = Math.sin(a);
+  ctx.setTransform(DPR * c, DPR * sn, -DPR * sn, DPR * c, x * DPR, y * DPR);
+  ctx.globalAlpha = Math.max(0, alpha);
+  const h = s / 2, b = Math.max(1, s * 0.06);
+  ctx.fillStyle = it.dupOf ? '#ff8a96' : it.kind === 'video' ? '#c9b6ff' : '#f4f6fb';
+  ctx.fillRect(-h, -h, s, s);
+  ctx.drawImage(it.thumb, -h + b, -h + b, s - 2 * b, s - 2 * b);
+  if (it.kind === 'video' && s > 22){
+    const r = s * 0.16;
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.arc(0, 0, r * 1.25, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-r * .45, -r * .7); ctx.lineTo(r * .75, 0); ctx.lineTo(-r * .45, r * .7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+let lastHit = 0;
+function land(it){
+  it.state = 'landed';
+  const c = it.fly.card; c.count++; sortedCount++;
+  c.cntEl.textContent = c.count;
+  $('sSorted').textContent = sortedCount;
+  const g = c.pv.getContext('2d'); g.drawImage(it.thumb, 0, 0, THUMB, THUMB);
+  const now = performance.now();
+  if (now - lastHit > 70){ lastHit = now; bump(c.cntEl); bump($('sSorted')); c.el.classList.add('hit'); clearTimeout(c._h); c._h = setTimeout(() => c.el.classList.remove('hit'), 220); }
+}
+function startSort(){
+  if (!analyzed()) return toast('還在分析檔案，請稍候');
+  if (phase === 'done') return toast('已整理完成，按 R 可重播');
+  if (phase !== 'ready') return;
+  // 尚未彈出的直接放上去
+  for (const it of popQueue.splice(0)) if (it.state === 'wait'){ it.state = 'ring'; }
+  relayout();
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  for (const it of items) if (it.s === 0){ it.x = center.x + it.bx * cr - it.by * sr; it.y = center.y + it.bx * sr + it.by * cr; it.s = it.ts; }
+  launchList = items.filter(i => i.state === 'ring' || i.state === 'pop');
+  // 由外圈往內一張張飛，間隔越來越短
+  launchList.sort((a, b) => (b.bx * b.bx + b.by * b.by) - (a.bx * a.bx + a.by * a.by));
+  const n = launchList.length, L = Math.min(7500, 1400 + n * 9);
+  launchTimes = launchList.map((_, i) => L * Math.pow(i / Math.max(1, n), 0.5));
+  launchIdx = 0; launchStart = performance.now(); sortedCount = 0;
+  for (const c of cards.values()){ c.count = 0; c.cntEl.textContent = '0'; }
+  phase = 'sorting'; hideBadge(); updateButtons(); updateStatus(); refreshStats();
+}
+function finishSort(){
+  phase = 'done';
+  const sum = [...cards.values()].reduce((a, c) => a + c.count, 0);
+  const photo = items.filter(i => i.kind === 'photo').length;
+  $('badgeText').textContent = `${sum} 個檔案（照片 ${photo}、影片 ${items.length - photo}）分到 ${cards.size} 個資料夾` +
+    (items.some(i => i.dupOf) ? `，其中重複檔 ${items.filter(i => i.dupOf).length} 個` : '');
+  $('badge').classList.add('show');
+  updateButtons(); updateStatus();
+}
+function hideBadge(){ $('badge').classList.remove('show'); }
+function resetSort(silent){
+  if (phase === 'idle') return;
+  hideBadge(); sortedCount = 0; launchList = []; launchIdx = 0;
+  popQueue.length = 0;
+  for (const it of items){ it.state = 'wait'; it.s = 0; it.fly = null; popQueue.push(it); }
+  for (const c of cards.values()){ c.count = 0; c.cntEl.textContent = '0'; c.pv.getContext('2d').clearRect(0, 0, THUMB, THUMB); }
+  phase = items.length ? 'ready' : 'idle'; layoutN = -1;
+  refreshStats(); updateButtons(); updateStatus();
+  if (!silent) toast('已回到整理前，按 S 再看一次');
+}
+function clearAll(){
+  if (!confirm('清空目前載入的檔案清單？（不會刪除電腦裡的任何檔案）')) return;
+  items.length = 0; popQueue.length = 0; imgQ.length = 0; vidQ.length = 0; launchList = []; cards = new Map();
+  $('left').innerHTML = ''; $('right').innerHTML = ''; sortedCount = 0; phase = 'idle'; hideBadge();
+  if (mode === 'claude'){ mode = 'month'; $('mode').value = 'month'; $('mode').options[3].disabled = true; }
+  document.body.classList.remove('has-files'); layoutN = -1; refreshStats(); updateButtons(); setStatus('');
+}
+
+/* ========= 分類總表、提示詞、套用回覆 ========= */
+function csvCell(v){ v = v == null ? '' : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function toCsv(rows){ return '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n'; }
+function outPaths(){
+  const used = new Set(), map = new Map();
+  for (const it of items){
+    const dir = safeName(it.cat || catOf(it));
+    const nm = safeName(it.name), dot = nm.lastIndexOf('.');
+    const stem = dot > 0 ? nm.slice(0, dot) : nm, ex = dot > 0 ? nm.slice(dot) : '';
+    let p = `${dir}/${nm}`, k = 2;
+    while (used.has(p.toLowerCase())) p = `${dir}/${stem} (${k++})${ex}`;
+    used.add(p.toLowerCase()); map.set(it, p);
+  }
+  return map;
+}
+function sheetRows(withResult){
+  const op = outPaths();
+  const head = ['編號', '原始路徑', '檔名', '類型', '拍攝時間', '時間來源', '大小', '影片長度(秒)', '分類', '是否重複', '重複於編號'];
+  if (withResult) head.push('整理後路徑');
+  const rows = [head];
+  for (const it of items){
+    const r = [it.id, it.path, it.name, it.kind === 'video' ? '影片' : '照片', fmtDate(it.date), it.dateSrc, fmtSize(it.size),
+      it.duration != null ? it.duration.toFixed(1) : '', it.cat, it.dupOf ? '是' : '否', it.dupOf || ''];
+    if (withResult) r.push(op.get(it));
+    rows.push(r);
+  }
+  return rows;
+}
+function downloadSheet(){ download(new Blob([toCsv(sheetRows(false))], { type: 'text/csv' }), `分類總表_${stamp()}.csv`); toast('已下載分類總表'); }
+function downloadCsv(){ download(new Blob([toCsv(sheetRows(true))], { type: 'text/csv' }), `整理結果_${stamp()}.csv`); toast('已下載 CSV'); }
+const PROMPT_INLINE_MAX = 1500;
+function buildPrompt(){
+  const list = items.filter(i => !i.dupOf);
+  const lines = list.map(it => [it.id, it.path, it.kind === 'video' ? '影片' : '照片', fmtDate(it.date) || '未知', it.cat].join('\t'));
+  const inline = list.length <= PROMPT_INLINE_MAX;
+  return `你是協助整理照片與影片的助理。請依「原始路徑、檔名、拍攝時間」幫下列檔案分類，分成有意義的資料夾。
+
+分類原則：
+1. 資料夾名稱用繁體中文，簡短明確（例：「2024-05 日本旅遊」「客戶A 輔導現場」「家庭聚會」「螢幕截圖」）。
+2. 優先參考原始資料夾名稱與檔名中的線索，其次依拍攝時間把同一事件、同一天或相近日期的檔案歸在一起。
+3. 分類數量以 5～20 個為宜；真的無法判斷的放「其他」。
+4. 每個編號都要給分類，不要遺漏，也不要自創新編號。
+5. 重複檔已由工具排除，不需處理。
+
+請只回覆一個程式碼區塊，內容是 JSON 陣列，格式如下，不要加其他說明：
+\`\`\`json
+[{"id":1,"category":"2024-05 日本旅遊"},{"id":2,"category":"家庭聚會"}]
+\`\`\`
+
+` + (inline
+    ? `檔案清單（欄位：編號、原始路徑、類型、拍攝時間、目前分類；共 ${list.length} 筆）：\n` + lines.join('\n')
+    : `檔案共 ${list.length} 筆，清單請見我附上的「分類總表.csv」（欄位：編號、原始路徑、檔名、類型、拍攝時間…）。請略過「是否重複」為「是」的列。`);
+}
+async function copyText(s){
+  try { await navigator.clipboard.writeText(s); return true; }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = s; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+    ta.remove(); return ok;
+  }
+}
+async function copyPrompt(){
+  const p = buildPrompt();
+  const ok = await copyText(p);
+  const big = items.filter(i => !i.dupOf).length > PROMPT_INLINE_MAX;
+  if (ok) toast(big ? '已複製提示詞。檔案較多，請一併把「分類總表」CSV 附給 Claude' : '已複製提示詞，貼給 Claude 即可', 4200);
+  else openModal('複製提示詞', '瀏覽器不允許自動複製，請手動全選複製下方文字。', p, null);
+}
+function openModal(title, desc, text, onOk){
+  $('mTitle').textContent = title; $('mDesc').textContent = desc; $('mText').value = text || '';
+  $('mOk').style.display = onOk ? '' : 'none'; $('mOk').onclick = () => { if (onOk(($('mText').value))) closeModal(); };
+  $('modal').classList.add('show'); setTimeout(() => $('mText').focus(), 30);
+}
+function closeModal(){ $('modal').classList.remove('show'); }
+function parseReply(text){
+  let body = text;
+  const fences = [...text.matchAll(/```[a-zA-Z]*\s*\n?([\s\S]*?)```/g)].map(m => m[1]);
+  if (fences.length) body = fences.join('\n');
+  const pairs = [];
+  const tryJson = s => {
+    const st = s.search(/[\[{]/); if (st < 0) return false;
+    const en = Math.max(s.lastIndexOf(']'), s.lastIndexOf('}')); if (en <= st) return false;
+    let j; try { j = JSON.parse(s.slice(st, en + 1)); } catch(e){ return false; }
+    const keyOf = o => o.id ?? o.ID ?? o['編號'] ?? o.no ?? o.index ?? o.file ?? o.path ?? o['檔名'] ?? o.filename ?? o.name;
+    const catOfObj = o => o.category ?? o['分類'] ?? o.folder ?? o['資料夾'] ?? o.cat ?? o.album;
+    if (Array.isArray(j)){
+      for (const o of j){
+        if (Array.isArray(o) && o.length >= 2) pairs.push([o[0], o[1]]);
+        else if (o && typeof o === 'object' && keyOf(o) != null && catOfObj(o) != null) pairs.push([keyOf(o), catOfObj(o)]);
+      }
+    } else if (j && typeof j === 'object'){
+      const root = j.categories || j.classification || j.result || j['分類'] || j;
+      if (Array.isArray(root)) return tryJson(JSON.stringify(root));
+      for (const [k, v] of Object.entries(root)){
+        if (Array.isArray(v)) for (const id of v) pairs.push([id, k]);   // {"分類":[1,2,3]}
+        else if (typeof v === 'string' || typeof v === 'number') pairs.push([k, v]);   // {"1":"分類"}
+      }
+    }
+    return pairs.length > 0;
+  };
+  if (!tryJson(body)){
+    for (let line of body.split(/\r?\n/)){
+      line = line.trim().replace(/^[-*•]\s*/, ''); if (!line || /^(編號|id)\b/i.test(line)) continue;
+      const m = line.match(/^"?([^\t,|：:→=]+?)"?\s*(?:\t|,|\||：|:|→|->|=)\s*"?(.+?)"?\s*,?$/);
+      if (m) pairs.push([m[1].trim(), m[2].trim()]);
+    }
+  }
+  return pairs;
+}
+function applyReply(text){
+  const pairs = parseReply(text);
+  if (!pairs.length){ toast('看不懂這段回覆，請確認貼上的是 Claude 回覆的 JSON 或「編號,分類」清單', 4200); return false; }
+  const byId = new Map(items.map(i => [String(i.id), i]));
+  const byPath = new Map(items.map(i => [i.path.toLowerCase(), i]));
+  const byName = new Map(); for (const i of items){ const k = i.name.toLowerCase(); byName.set(k, byName.has(k) ? null : i); }
+  let ok = 0, miss = 0;
+  for (const it of items) it.custom = null;
+  for (let [k, cat] of pairs){
+    k = String(k).trim().replace(/^#/, '');
+    const it = byId.get(k) || byPath.get(k.toLowerCase()) || byName.get(k.toLowerCase());
+    if (it && String(cat).trim()){ it.custom = safeName(cat); ok++; } else miss++;
+  }
+  if (!ok){ toast('回覆中的編號都對不上目前的檔案，請確認是這批檔案的提示詞', 4200); return false; }
+  mode = 'claude'; $('mode').options[3].disabled = false; $('mode').value = 'claude';
+  resetSort(true); rebuildCards(); updateButtons(); updateStatus();
+  const left = items.filter(i => !i.dupOf && !i.custom).length;
+  toast(`已套用 Claude 分類：${ok} 筆` + (miss ? `，${miss} 筆對不上` : '') + (left ? `，${left} 個檔案放在「${UNSORTED_CAT}」` : '') + '。按 S 開始整理', 5200);
+  return true;
+}
+
+/* ========= 匯出 ========= */
+let exporting = false;
+async function saveToFolder(){
+  if (!window.showDirectoryPicker){ toast('這個瀏覽器不支援直接存到資料夾（需 Chrome 或 Edge），請改用「下載 ZIP」', 4500); return; }
+  let root;
+  try { root = await window.showDirectoryPicker({ mode: 'readwrite', id: 'photo-sorter-out' }); }
+  catch(e){ if (e.name !== 'AbortError') toast('無法開啟資料夾：' + e.message); return; }
+  exporting = true; updateButtons();
+  const outName = `整理結果_${stamp()}`;
+  try {
+    const out = await root.getDirectoryHandle(outName, { create: true });
+    const dirs = new Map(); const op = outPaths(); let n = 0;
+    for (const it of items){
+      const [dir, file] = op.get(it).split('/');
+      if (!dirs.has(dir)) dirs.set(dir, await out.getDirectoryHandle(dir, { create: true }));
+      const fh = await dirs.get(dir).getFileHandle(file, { create: true });
+      const w = await fh.createWritable();
+      await w.write(it.file); await w.close();
+      if (++n % 3 === 0 || n === items.length) setStatus(`複製檔案 ${n}/${items.length}…`);
+    }
+    const ch = await out.getFileHandle('整理結果.csv', { create: true }); const cw = await ch.createWritable();
+    await cw.write(new Blob([toCsv(sheetRows(true))])); await cw.close();
+    toast(`已複製 ${items.length} 個檔案到「${outName}」，原始檔未變動`, 5000);
+  } catch(e){ toast('存檔失敗：' + e.message, 5000); }
+  exporting = false; updateButtons(); updateStatus();
+}
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+async function crcOf(blob){
+  let c = 0xFFFFFFFF; const CH = 8 * 1048576;
+  for (let o = 0; o < blob.size; o += CH){
+    const u = new Uint8Array(await blob.slice(o, o + CH).arrayBuffer());
+    for (let i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 0xFF] ^ (c >>> 8);
+  }
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function dosTime(d){
+  d = d || new Date();
+  const y = Math.max(1980, d.getFullYear());
+  return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((y - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
+}
+async function downloadZip(){
+  const total = items.reduce((a, i) => a + i.size, 0);
+  if (total > 3.9 * 1073741824 || items.length > 65000){ toast('檔案總量超過 ZIP 上限（約 4 GB），請改用「存到資料夾」', 5000); return; }
+  exporting = true; updateButtons();
+  try {
+    const enc = new TextEncoder(); const op = outPaths();
+    const entries = items.map(it => ({ name: op.get(it), blob: it.file, mtime: new Date(it.file.lastModified || Date.now()) }));
+    entries.push({ name: '整理結果.csv', blob: new Blob([toCsv(sheetRows(true))]), mtime: new Date() });
+    const parts = [], central = []; let offset = 0, done = 0;
+    for (const e of entries){
+      const nameB = enc.encode(e.name), crc = await crcOf(e.blob), size = e.blob.size, { time, date } = dosTime(e.mtime);
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+      lh.setUint16(26, nameB.length, true); lh.setUint16(28, 0, true);
+      parts.push(lh.buffer, nameB, e.blob);
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+      ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true);
+      ch.setUint16(28, nameB.length, true); ch.setUint32(42, offset, true);
+      central.push(ch.buffer, nameB);
+      offset += 30 + nameB.length + size;
+      if (++done % 3 === 0) setStatus(`打包 ZIP ${done}/${entries.length}…`);
+    }
+    const cdSize = central.reduce((a, b) => a + b.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    download(new Blob([...parts, ...central, end.buffer], { type: 'application/zip' }), `整理結果_${stamp()}.zip`);
+    toast('ZIP 已開始下載（原始檔未變動）');
+  } catch(e){ toast('ZIP 打包失敗：' + e.message, 5000); }
+  exporting = false; updateButtons(); updateStatus();
+}
+
+/* ========= 事件 ========= */
+$('bDir').onclick = $('dDir').onclick = () => $('inDir').click();
+$('bFiles').onclick = $('dFiles').onclick = () => $('inFiles').click();
+$('inDir').onchange = e => collectInput(e.target);
+$('inFiles').onchange = e => collectInput(e.target);
+$('bSort').onclick = startSort;
+$('bReset').onclick = () => resetSort(false);
+$('bClear').onclick = clearAll;
+$('bSheet').onclick = downloadSheet;
+$('bPrompt').onclick = copyPrompt;
+$('bPaste').onclick = () => openModal('貼上 Claude 回覆', '把 Claude 回覆的內容整段貼進來（JSON 或「編號,分類」每行一筆皆可），按「套用」後重新分類。', '', applyReply);
+$('bSave').onclick = $('kSave').onclick = saveToFolder;
+$('bZip').onclick = $('kZip').onclick = downloadZip;
+$('bCsv').onclick = $('kCsv').onclick = downloadCsv;
+$('kClose').onclick = hideBadge;
+$('mCancel').onclick = closeModal;
+$('mode').onchange = e => { mode = e.target.value; if (items.length){ resetSort(true); rebuildCards(); updateButtons(); updateStatus(); } };
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('textarea,input,select')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if ($('modal').classList.contains('show')) { if (e.key === 'Escape') closeModal(); return; }
+  const k = e.key.toLowerCase();
+  if (k === 's'){ e.preventDefault(); startSort(); }
+  else if (k === 'r'){ e.preventDefault(); if (!$('bReset').disabled) resetSort(false); }
+  else if (k === 'escape') hideBadge();
+});
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+window.addEventListener('dragleave', e => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) document.body.classList.remove('dragging'); });
+window.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); if (e.dataTransfer) handleDrop(e.dataTransfer); });
+
+resize(); updateButtons();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
